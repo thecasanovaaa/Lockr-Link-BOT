@@ -1,6 +1,14 @@
 import os
 import requests
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import re
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
 from keep_alive import run
 run()   # Start Flask keepalive BEFORE bot polling
@@ -98,11 +106,9 @@ def make_lockr(target_url, title):
 
     data = r.json()
 
-    import re
     urls = re.findall(r'https?://[^\s"\'\}]+', str(data))
-
     if not urls:
-        raise Exception("Lockr created but no URL found in response")
+        raise Exception("Lockr created but no URL found")
 
     for u in urls:
         if "lockr" in u.lower():
@@ -112,16 +118,16 @@ def make_lockr(target_url, title):
 
 
 # ---------- TELEGRAM ----------
-def start(update, context):
-    if update.message.from_user.id != OWNER_ID:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
         return
 
-    user_state.pop(update.message.from_user.id, None)
-    update.message.reply_text("👋 Mega Link Bejh Gandu:")
+    user_state.pop(update.effective_user.id, None)
+    await update.message.reply_text("👋 Mega Link Bejh Gandu:")
 
 
-def handle(update, context):
-    user = update.message.from_user.id
+async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user.id
     if user != OWNER_ID:
         return
 
@@ -130,7 +136,7 @@ def handle(update, context):
     # Step 1
     if user not in user_state:
         user_state[user] = {"mega": text}
-        update.message.reply_text("Chinal ka Naam bejh:")
+        await update.message.reply_text("Chinal ka Naam bejh:")
         return
 
     # Step 2
@@ -138,14 +144,13 @@ def handle(update, context):
     mega = user_state[user]["mega"]
     name = user_state[user]["name"]
 
-    update.message.reply_text("Shanti rakh jhatu kar rha hu na kaam ⏳")
+    await update.message.reply_text("Shanti rakh jhatu kar rha hu na kaam ⏳")
 
     try:
         t1 = TEMPLATE_A.replace("{{MEGA}}", str(mega))
         paste_a = create_gist(t1)
 
         lockr_a = make_lockr(paste_a, f"{name} mega link")
-
         if not lockr_a:
             raise Exception("Lockr A Failed")
 
@@ -153,34 +158,32 @@ def handle(update, context):
         paste_b = create_gist(t2)
 
         lockr_b = make_lockr(paste_b, name)
-
         if not lockr_b:
             raise Exception("Final Lockr Failed")
 
-        update.message.reply_text(f"🔥 LE RE LAND KE:\n{lockr_b}")
+        await update.message.reply_text(f"🔥 LE RE LAND KE:\n{lockr_b}")
 
     except Exception as e:
-        update.message.reply_text(f"❌ Failed: {e}")
+        await update.message.reply_text(f"❌ Failed: {e}")
 
     finally:
         user_state.pop(user, None)
 
 
-def main():
+async def main():
     if not BOT_TOKEN:
         print("ERROR: BOT_TOKEN missing")
         return
 
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.text, handle))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
     print("Locker Bot Running...")
-    updater.start_polling()
-    updater.idle()
+    await app.run_polling()
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
