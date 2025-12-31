@@ -170,7 +170,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_state.pop(user, None)
 
 
-async def main():
+def main():
     if not BOT_TOKEN:
         print("ERROR: BOT_TOKEN missing")
         return
@@ -181,9 +181,8 @@ async def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
 
     print("Locker Bot Running...")
-    await app.run_polling()
+    app.run_polling()
 
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    main()
